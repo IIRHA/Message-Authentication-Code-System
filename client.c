@@ -129,6 +129,7 @@ void *recvMessage(void *sock)
             goto recieve;
         }
 
+
         ptrdiff_t messageLen = separatorLocation - recvBuffer;
         
         messageOut = malloc(messageLen + strlen(secret) + 1);
