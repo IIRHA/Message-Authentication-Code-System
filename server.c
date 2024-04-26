@@ -16,6 +16,12 @@
 #define SVPORT 8008
 #define CLPORT 8009
 
+typedef struct sockdata
+{
+    int sockfd;
+    char *secret;
+} sockdata;
+
 void HashASCII512(const char *message, unsigned char md[SHA512_DIGEST_LENGTH])
 {
     SHA512_CTX ctx;
@@ -24,14 +30,15 @@ void HashASCII512(const char *message, unsigned char md[SHA512_DIGEST_LENGTH])
     SHA512_Final(md, &ctx);
 }
 
-void *sendMessage(void *sock)
+void *sendMessage(void *args)
 {
-    int sockfd = *(int *)sock;
+    sockdata *sd = (sockdata *)args;
 
+    int sockfd = sd->sockfd;
     char *message;
     char *hashInHex;
     char *messageCopy;
-    char secret[] = "12923827";
+    char *secret = sd->secret;
     char separator[] = "<SEP>";
     unsigned char hash[SHA512_DIGEST_LENGTH];
     int messageSize = 2048;
@@ -42,7 +49,7 @@ void *sendMessage(void *sock)
 
     if(!message || !hashInHex)
     {
-        perror("Failed to allocate memory allocate memory\n");
+        perror("Failed to allocate memory\n");
         exit(0);
     }
 
@@ -102,12 +109,13 @@ void *sendMessage(void *sock)
     return NULL;
 }
 
-void *recvMessage(void *sock)
+void *recvMessage(void *args)
 {
-    int sockfd = *(int *)sock;
+    sockdata *sd = (sockdata *)args;
 
+    int sockfd = sd->sockfd;
     char *recvBuffer = malloc(2186);
-    char secret[] = "12923827";
+    char *secret = sd->secret;
     int n;
     
     int hashLen = SHA512_DIGEST_LENGTH * 2 + 1;
@@ -173,12 +181,37 @@ void *recvMessage(void *sock)
     return NULL;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+    if(argc != 3)
+    {
+        fprintf(stderr, "Usage: %s [filepath] [ip addr]\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    const char *filePath = argv[1];
+    FILE *fp = fopen(filePath, "r");
+    if(fp == NULL)
+    {
+        perror("Failed to open file. This could be because file does not exist or is an invalid format.\nAccepted format is only .txt. Other formats may work.\n");
+        fclose(fp);
+        exit(EXIT_FAILURE);
+    }
+
+    char secret[513];
+    if(fgets(secret, sizeof(secret), fp) == NULL)
+    {
+        fprintf(stderr, "Failed to read key from file.\n");
+        fclose(fp);
+        exit(EXIT_FAILURE);
+    } 
+    fclose(fp);
+    secret[513 - 1] = '\0';
+
     int sockfd, connfd;
     struct sockaddr_in serverInfo, clientInfo;
     int optVal = 1;
-    char machineIP[] = "127.0.0.1";
+    char *machineIP = argv[2];//REMEMBER TO FREE AFTER USING
     int serverPort = SVPORT;
     int clientPort = CLPORT;
     
@@ -235,14 +268,18 @@ int main()
         printf("Connected to peer: %d\n", inet_ntoa(clientInfo.sin_addr));
     }
 
+    sockdata sd;
+    sd.secret = secret;
+    sd.sockfd = sockfd;
+
     pthread_t sendThread, recvThread;
-    pthread_create(&sendThread, NULL, sendMessage, &sockfd);
-    pthread_create(&recvThread, NULL, recvMessage, &sockfd);
+    pthread_create(&sendThread, NULL, sendMessage, &sd);
+    pthread_create(&recvThread, NULL, recvMessage, &sd);
 
     pthread_join(sendThread, NULL);
     pthread_join(recvThread, NULL);
 
     close(sockfd);
-
+    free(machineIP);//REMEMBER TO FREE MACHINEIP 
     return 0;
 }

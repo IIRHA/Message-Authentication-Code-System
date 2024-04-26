@@ -55,3 +55,6 @@ Mkfile.old
 dkms.conf
 code.sh
 .vscode/settings.json
+
+#Others
+secretkey.txt
