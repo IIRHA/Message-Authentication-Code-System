@@ -76,7 +76,7 @@ void *sendMessage(void *args)
         
         strncat(messageCopy, message, strlen(message));
         strcat(messageCopy, secret);
-        printf("MessageCopy: %s\n", messageCopy);
+        printf("Message and Key: %s\n", messageCopy);
         
         HashASCII512(messageCopy, hash);
 
@@ -93,8 +93,8 @@ void *sendMessage(void *args)
             sprintf(hashInHex + i * 2, "%02x", hash[i]);
         }
 
-        strncat(message, separator, strlen(separator));
-        strncat(message, hashInHex, SHA512_DIGEST_LENGTH * 2);
+        strncat(message, separator, strlen("<SEP>"));
+        strncat(message, hashInHex, strlen(hashInHex));
         printf("Final message with hash: %s\n", message);
 
         send(sockfd, message, strlen(message), 0);
@@ -122,36 +122,31 @@ void *recvMessage(void *args)
     unsigned char newMessageHash[SHA512_DIGEST_LENGTH];
     char *newMessageHashInHex = malloc(SHA512_DIGEST_LENGTH * 2 + 1);
 
-    recieve:
     while((n = recv(sockfd, recvBuffer, 2186, 0)) > 0)
     {
         recvBuffer[n] = '\0';
-        printf("Recieved message with hash: %s\n", recvBuffer);
-        
         const char *separatorLocation = strstr(recvBuffer, "<SEP>");
         if(separatorLocation == NULL)
         {
             fprintf(stderr, "Separator not found. Waiting for another message.\n");
-            goto recieve;
+            continue;
         }
 
-
         ptrdiff_t messageLen = separatorLocation - recvBuffer;
-        
         messageOut = malloc(messageLen + strlen(secret) + 1);
+        memset(messageOut, 0, messageLen + strlen(secret) + 1);
         strncpy(messageOut, recvBuffer, messageLen);
         messageOut[messageLen + strlen(secret)] = '\0';
         printf("Received message: %s\n", messageOut);
 
         const char *hashStart = separatorLocation + strlen("<SEP>");
         int hashLen = strlen(hashStart);
-
         hashOut = malloc(hashLen + 1);
         strcpy(hashOut, hashStart);
         hashOut[SHA512_DIGEST_LENGTH * 2 + 1] = '\0';
         printf("Received hash: %s\n", hashOut);
 
-        strncat(messageOut, secret, strlen(secret));
+        strcat(messageOut, secret);
         printf("Hashed: %s\n", messageOut);
         HashASCII512(messageOut, newMessageHash);
        
@@ -170,6 +165,7 @@ void *recvMessage(void *args)
             printf("Hash values are different. The message is not secure\n");
         }
 
+        memset(recvBuffer, 0, strlen(recvBuffer));
         free(messageOut);
         free(hashOut);
         printf("Enter the message: \n");

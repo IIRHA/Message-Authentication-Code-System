@@ -70,16 +70,14 @@ void *sendMessage(void *args)
             free(hashInHex);
             break;
         }
-
+        
         message[strcspn(message, "\n")] = '\0';
         printf("Message: %s\n", message);
 
         strncat(messageCopy, message, strlen(message));
-
         strcat(messageCopy, secret);
-        printf("Key: %s\n", secret);
+        printf("Message and Key: %s\n", messageCopy);
 
-        printf("MessageCopy: %s\n", messageCopy);
         HashASCII512(messageCopy, hash);
 
         printf("Hash: ");
@@ -95,8 +93,8 @@ void *sendMessage(void *args)
             sprintf(hashInHex + i * 2, "%02x", hash[i]);
         }
 
-        strncat(message, separator, strlen(separator));
-        strncat(message, hashInHex, SHA512_DIGEST_LENGTH * 2);
+        strncat(message, separator, strlen("<SEP>"));
+        strncat(message, hashInHex, strlen(hashInHex));
         printf("Final message with hash: %s\n", message);
 
         send(sockfd, message, strlen(message), 0);
@@ -124,29 +122,25 @@ void *recvMessage(void *args)
     unsigned char newMessageHash[SHA512_DIGEST_LENGTH];
     char *newMessageHashInHex = malloc(SHA512_DIGEST_LENGTH * 2 + 1);
 
-    recieve:
     while((n = recv(sockfd, recvBuffer, 2186, 0)) > 0)
-    {
+    {   
         recvBuffer[n] = '\0';
-        printf("Recieved message with hash: %s\n", recvBuffer);
-        
-        const char *separatorLocation = strstr(recvBuffer, "<SEP>");
+        char *separatorLocation = strstr(recvBuffer, "<SEP>");
         if(separatorLocation == NULL)
         {
             fprintf(stderr, "Separator not found. Waiting for another message.\n");
-            goto recieve;
+            continue;
         }
 
         ptrdiff_t messageLen = separatorLocation - recvBuffer;
-        
         messageOut = malloc(messageLen + strlen(secret) + 1);
+        memset(messageOut, 0, messageLen + strlen(secret) + 1);
         strncpy(messageOut, recvBuffer, messageLen);
         messageOut[messageLen + strlen(secret)] = '\0';
         printf("Received message: %s\n", messageOut);
 
         const char *hashStart = separatorLocation + strlen("<SEP>");
         int hashLen = strlen(hashStart);
-
         hashOut = malloc(hashLen + 1);
         strcpy(hashOut, hashStart);
         hashOut[SHA512_DIGEST_LENGTH * 2 + 1] = '\0';
@@ -171,7 +165,7 @@ void *recvMessage(void *args)
             printf("Hash values are different. The message is not secure\n");            
         }
 
-        free(messageOut);
+        memset(recvBuffer, 0, strlen(recvBuffer));
         free(hashOut);
         printf("Enter the message: \n");
     }
@@ -206,7 +200,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     } 
     fclose(fp);
-    secret[513 - 1] = '\0';
+    secret[513 - 1] = '\0'; 
 
     int sockfd, connfd;
     struct sockaddr_in serverInfo, clientInfo;
@@ -267,7 +261,6 @@ int main(int argc, char *argv[])
     {
         printf("Connected to peer: %d\n", inet_ntoa(clientInfo.sin_addr));
     }
-
     sockdata sd;
     sd.secret = secret;
     sd.sockfd = sockfd;
