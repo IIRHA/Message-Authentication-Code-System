@@ -1,4 +1,8 @@
 {
-    "C_Cpp.errorSquiggles": "disabled"
+    "C_Cpp.errorSquiggles": "disabled",
+    "files.associations": {
+        "sha.h": "c",
+        "socket.h": "c"
+    }
     
 }
